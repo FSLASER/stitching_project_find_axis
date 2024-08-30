@@ -157,21 +157,27 @@ def recenter_and_rotate(img, x1, y1, x2, y2):
     angle_rad = np.arctan2(y2 - y1, x2 - x1)
     angle_deg = np.degrees(angle_rad)
 
+    # Rotation matrix
     M_rot = cv2.getRotationMatrix2D((obj_center_x, obj_center_y), angle_deg, 1.0)
-
     rotated_img = cv2.warpAffine(img, M_rot, (img_width, img_height))
 
+    # Calculate transformed center coordinates after rotation
     rot_center_x = (M_rot[0, 0] * obj_center_x + M_rot[0, 1] * obj_center_y + M_rot[0, 2])
     rot_center_y = (M_rot[1, 0] * obj_center_x + M_rot[1, 1] * obj_center_y + M_rot[1, 2])
 
+    # Translation to recenter the rotated image
     x_trans_after_rot = img_center_x - rot_center_x
     y_trans_after_rot = img_center_y - rot_center_y
-
     M_trans = np.array([[1, 0, x_trans_after_rot], [0, 1, y_trans_after_rot]])
 
     transformed_img = cv2.warpAffine(rotated_img, M_trans, (img_width, img_height))
 
-    return transformed_img
+    # Transform the original x1, x2 points using the combined transformations
+    transformed_x1 = M_rot[0, 0] * x1 + M_rot[0, 1] * y1 + M_rot[0, 2] + x_trans_after_rot
+    transformed_x2 = M_rot[0, 0] * x2 + M_rot[0, 1] * y2 + M_rot[0, 2] + x_trans_after_rot
+
+    return transformed_img, int(transformed_x1), int(transformed_x2)
+
 
 
 def update_stitching(val):
@@ -194,7 +200,7 @@ def update_stitching(val):
         x1, x2 = 0, width - 1  # The far left and right of the image
         y1, y2 = int(height / 2 + axis_shift_left), int(height / 2 + axis_shift_right)
 
-        transformed_img = recenter_and_rotate(img, x1, y1, x2, y2)
+        transformed_img,_,_ = recenter_and_rotate(img, x1, y1, x2, y2)
         recentered_images.append(transformed_img)
 
     stitch_img = None
@@ -235,9 +241,6 @@ def stitch(img_index, global_avg_shift, recentered_img, stitch_img=None, axis_sh
 
     return stitch_img
 
-
-
-
 def main():
     global stitch_img, last_valid_shift, image_files, directory, num_imgs, num_overlap_imgs
     input_directory = 'ori_rotary_pic'  # Original directory containing the images
@@ -248,33 +251,39 @@ def main():
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
-    print("Enter the axis of rotation in x1, x2, y1, y2 for recentering the images, or input '0000' if the images are already recentered.")
+    print("Enter the axis of rotation in x1, x2, y1, y2 for recentering the images:")
     recenter_input = input("Enter values (format: x1 x2 y1 y2): ").strip()
+    try:
+        x1, x2, y1, y2 = map(int, recenter_input.split())
+        image_files = sorted([f for f in os.listdir(input_directory) if f.endswith('.jpg') or f.endswith('.png')],
+                                key=numerical_sort)
 
-    if recenter_input != "0000":
-        try:
-            x1, x2, y1, y2 = map(int, recenter_input.split())
+        # To capture the last transformed x1 and x2 for use in cropping
+        last_transformed_x1, last_transformed_x2 = x1, x2
 
-            image_files = sorted([f for f in os.listdir(input_directory) if f.endswith('.jpg') or f.endswith('.png')],
-                                 key=numerical_sort)
+        for img_file in image_files:
+            img_path = os.path.join(input_directory, img_file)
+            img = cv2.imread(img_path)
+            if img is None:
+                print(f"Failed to load image {img_file}")
+                continue
 
-            for img_file in image_files:
-                img_path = os.path.join(input_directory, img_file)
-                img = cv2.imread(img_path)
-                if img is None:
-                    print(f"Failed to load image {img_file}")
-                    continue
+            # Recenter and rotate, and get transformed coordinates
+            transformed_img, transformed_x1, transformed_x2 = recenter_and_rotate(img, x1, y1, x2, y2)
+            recentered_img_path = os.path.join(output_directory, img_file)
+            cv2.imwrite(recentered_img_path, transformed_img)
+            print(f"Recentered and saved: {recentered_img_path}")
 
-                transformed_img = recenter_and_rotate(img, x1, y1, x2, y2)
-                recentered_img_path = os.path.join(output_directory, img_file)
-                cv2.imwrite(recentered_img_path, transformed_img)
-                print(f"Recentered and saved: {recentered_img_path}")
+            # Update last transformed coordinates
+            last_transformed_x1, last_transformed_x2 = transformed_x1, transformed_x2
 
-        except ValueError:
-            print("Invalid input. Please enter four integer values separated by spaces.")
-            return
+    except ValueError:
+        print("Invalid input. Please enter four integer values separated by spaces.")
+        return
 
+    # Update directory and set transformed cropping values
     directory = output_directory
+    x1, x2 = last_transformed_x1, last_transformed_x2
 
     projected_length = calculate_projected_length(diameter, arc_length_mm)
     overlap_height = (diameter - projected_length) / 2
@@ -284,7 +293,7 @@ def main():
     sample_image = cv2.imread(sample_image_path)
     img_height, img_width = sample_image.shape[:2]
 
-    x1, x2 = 540, 1320
+    # Use the updated x1, x2 from recentering transformation
     y1, y2 = int(img_height / 2 - 15), int(img_height / 2 + 15)
 
     axis_shift_val = 50
@@ -311,5 +320,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
 ```
