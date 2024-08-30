@@ -236,7 +236,6 @@ def stitch(img_index, global_avg_shift, recentered_img, stitch_img=None, axis_sh
     return stitch_img
 
 
-import os
 
 
 def main():
