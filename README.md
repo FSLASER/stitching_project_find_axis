@@ -2,48 +2,41 @@
 
 ## Description
 
-This project is designed to stitch together a series of images and find the corrected axis of rotation by detecting feature points and adjusting for alignment. Below is a step-by-step description of the workflow, from feature point detection to user interaction and final image stitching.
+This project is designed to stitch together a series of images and find the corrected axis of rotation by detecting feature points and allowing users to adjust for alignment. Below is a step-by-step description of the workflow, from feature point detection to user interaction and final image stitching.
 
 ### 1. Feature Points Detection
 - **SIFT (Scale-Invariant Feature Transform):**
-  - The workflow begins by loading pairs of consecutive images from the specified directory.
+  - The workflow begins by recentering all images based on the initial axis of rotation given by the user and loading pairs of consecutive images from the directory of recentered images.
   - For each image pair, the SIFT algorithm is used to detect and compute keypoints and their corresponding descriptors. These keypoints represent distinct and identifiable features within the images (such as corners, edges, etc.).
 
 ### 2. Feature Points Matching
-- **Brute Force Matcher (BFMatcher):**
-- **RANSAC (Random Sample Consensus):**
+- **Brute Force Matcher (BFMatcher)**
+- **RANSAC (Random Sample Consensus)**
 
 ### 3. Calculate Displacements
 - **Displacement Calculation:**
-  - For each pair of matched inlier keypoints, the displacement between the corresponding points in the two images is calculated.
-  - The average vertical displacement (`y-shift`) is computed, which represents the relative shift between the images. This value is crucial for aligning the images during the stitching process.
+  - For each pair of matched inlier keypoints in the cropped regions of two consecutive images, the displacement between the corresponding points is calculated.
+  - The average vertical displacement (`y-shift`) between each two consecutive images pair within the directory is computed, which represents the relative shift between the images. This value is crucial for aligning the images during the stitching process.
 
 ### 4. Image Recenter and Rotation
 - **Recenter and Rotate:**
   - Once the displacements have been calculated, the images are recentered and rotated based on the keypoint displacements.
-  - The script allows for the adjustment of axis shifts (both left and right) to fine-tune the alignment of each image. This is done using a function that computes a rotation matrix to align the images horizontally based on the detected displacements.
+  - The script allows for the adjustment of axis shifts (both left and right) to fine-tune the alignment of each image.
   - This recentering and rotation step ensures that the keypoints align along a common horizontal axis, which is necessary for accurate stitching.
 
-### 5. User Interaction with Trackbars
-- **Interactive Trackbars:**
-  - The code provides a graphical interface where users can interactively adjust parameters using trackbars:
-    - **Global Shift:** Allows the user to fine-tune the overall vertical shift applied during stitching.
-    - **Axis Shift Left and Right:** Enables adjustments to the left and right axis shifts, which are particularly useful for correcting any skew in the images.
-  - As the user adjusts these parameters, the images are dynamically recentered and re-stitched, providing immediate visual feedback on the effect of the changes.
-
-### 6. Image Stitching
+### 5. Image Stitching
 - **Stitching Process:**
-  - After the images have been recentered and aligned, they are stitched together into a single image.
-  - The stitching process involves vertically aligning the images based on the computed displacements and the user-adjusted parameters.
-  - The script ensures a seamless transition between the images, taking into account the calculated shifts and any adjustments made by the user.
+  - After the displacement over all images is estimated, they are stitched together vertically into a single image.
+
+### 6. Trackbars
+- The code provides a graphical interface where users can interactively adjust parameters using trackbars:
+  - **Global Shift:** Allows the user to fine-tune the overall vertical shift applied during stitching.
+  - **Axis Shift Left and Right:** Enables adjustments to the left and right axis shifts, which are particularly useful for correcting any skew in the images.
+- As the user adjusts these parameters, the images are dynamically recentered and re-stitched, providing immediate visual feedback on the effect of the changes.
 
 - **Saving the Final Image:**
   - Once the user is satisfied with the alignment and stitching, the final stitched image is displayed.
   - The image is then saved to the local directory as `final_stitched_image.jpg`, preserving the adjustments made during the process.
-
-### Summary
-
-This workflow outlines how the code systematically processes a series of images to detect keypoints, match features, calculate displacements, recenter and rotate images, and finally stitch them into a single image. The user can interactively adjust key parameters, such as global shift and axis shifts, to ensure the images are perfectly aligned. The end result is a well-stitched image that combines multiple input images into a cohesive whole.
 
 
 
