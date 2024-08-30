@@ -55,9 +55,11 @@ import cv2
 import os
 import re
 
+
 def numerical_sort(value):
     match = re.search(r'(\d+\.?\d*)', value)
     return float(match.group(1)) if match else 0
+
 
 def calculate_projected_length(diameter, arc_length_mm):
     circumference = np.pi * diameter
@@ -66,11 +68,13 @@ def calculate_projected_length(diameter, arc_length_mm):
     projected_length = 2 * radius * np.sin(theta / 2)
     return projected_length
 
+
 def crop_image(img, x1, x2, y1, y2, axis_shift=0):
     height, width = img.shape[:2]
     y1 = int(y1 + axis_shift)
     y2 = int(y2 + axis_shift)
     return img[max(0, y1):min(height, y2), x1:x2]
+
 
 def sift_feature_matching(img1, img2, ratio_threshold):
     sift = cv2.SIFT_create()
@@ -112,6 +116,7 @@ def sift_feature_matching(img1, img2, ratio_threshold):
 
     return shifts
 
+
 def process_directory(directory, x1, x2, y1, y2, ratio_threshold, axis_shift_left=0, axis_shift_right=0):
     image_files = sorted([f for f in os.listdir(directory) if f.endswith('.jpg') or f.endswith('.png')],
                          key=numerical_sort)
@@ -148,6 +153,7 @@ def process_directory(directory, x1, x2, y1, y2, ratio_threshold, axis_shift_lef
 
     return total_shifts, global_avg_shift_y
 
+
 def recenter_and_rotate(img, x1, y1, x2, y2):
     img_height, img_width = img.shape[:2]
     img_center_x = img_width / 2
@@ -174,6 +180,7 @@ def recenter_and_rotate(img, x1, y1, x2, y2):
 
     return transformed_img
 
+
 def update_stitching(val):
     global stitch_img, last_valid_shift, image_files, directory, num_imgs, num_overlap_imgs
 
@@ -182,7 +189,6 @@ def update_stitching(val):
     axis_shift_left = cv2.getTrackbarPos('Axis Shift Left', 'Stitched Image') - 50
     axis_shift_right = cv2.getTrackbarPos('Axis Shift Right', 'Stitched Image') - 50
 
-    # Recenter and rotate all images based on the updated shifts
     recentered_images = []
     for idx, img_file in enumerate(image_files):
         img_path = os.path.join(directory, img_file)
@@ -194,16 +200,15 @@ def update_stitching(val):
         height, width = img.shape[:2]
         x1, x2 = 0, width - 1  # The far left and right of the image
         y1, y2 = int(height / 2 + axis_shift_left), int(height / 2 + axis_shift_right)
-        
-        # Apply recentering and rotation
+
         transformed_img = recenter_and_rotate(img, x1, y1, x2, y2)
         recentered_images.append(transformed_img)
 
-    # Perform stitching on the recentered images
     stitch_img = None
     for i in range(num_imgs):
-        stitch_img = stitch(i, global_avg_shift, recentered_images[i], stitch_img, axis_shift_left=axis_shift_left, axis_shift_right=axis_shift_right, num_imgs=num_imgs, num_overlap_imgs=num_overlap_imgs)
-    
+        stitch_img = stitch(i, global_avg_shift, recentered_images[i], stitch_img, axis_shift_left=axis_shift_left,
+                            axis_shift_right=axis_shift_right, num_imgs=num_imgs, num_overlap_imgs=num_overlap_imgs)
+
     # Display the stitched image
     if stitch_img is not None:
         cv2.imshow('Stitched Image', stitch_img)
@@ -213,19 +218,18 @@ def update_stitching(val):
     else:
         print("No images to display after stitching.")
 
-    # Print the final adjusted values
     print(f"Final adjusted values:")
     print(f"Global average shift: {global_avg_shift:.2f} pixels")
     print(f"Axis shift left: {axis_shift_left:.2f} pixels")
     print(f"Axis shift right: {axis_shift_right:.2f} pixels")
 
-def stitch(img_index, global_avg_shift, recentered_img, stitch_img=None, axis_shift_left=0, axis_shift_right=0, num_imgs=0, num_overlap_imgs=0):
+
+def stitch(img_index, global_avg_shift, recentered_img, stitch_img=None, axis_shift_left=0, axis_shift_right=0,
+           num_imgs=0, num_overlap_imgs=0):
     height, width = recentered_img.shape[:2]
 
-    # Determine the center line for stitching after transformation
     center_line = int(height / 2)
 
-    # Perform stitching based on the global average shift
     if img_index == 0:
         stitch_img = recentered_img[0:int(center_line + global_avg_shift / 2), :]
     elif img_index < num_imgs - num_overlap_imgs:
@@ -238,46 +242,82 @@ def stitch(img_index, global_avg_shift, recentered_img, stitch_img=None, axis_sh
 
     return stitch_img
 
+
+import os
+
+
 def main():
     global stitch_img, last_valid_shift, image_files, directory, num_imgs, num_overlap_imgs
-    directory = 'recentered'
+    input_directory = 'ori_rotary_pic'  # Original directory containing the images
+    output_directory = 'recentered'
     diameter = 66
     arc_length_mm = 0.5
+
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+
+    print("Enter the axis of rotation in x1, x2, y1, y2 for recentering the images, or input '0000' if the images are already recentered.")
+    recenter_input = input("Enter values (format: x1 x2 y1 y2): ").strip()
+
+    if recenter_input != "0000":
+        try:
+            x1, x2, y1, y2 = map(int, recenter_input.split())
+
+            image_files = sorted([f for f in os.listdir(input_directory) if f.endswith('.jpg') or f.endswith('.png')],
+                                 key=numerical_sort)
+
+            for img_file in image_files:
+                img_path = os.path.join(input_directory, img_file)
+                img = cv2.imread(img_path)
+                if img is None:
+                    print(f"Failed to load image {img_file}")
+                    continue
+
+                transformed_img = recenter_and_rotate(img, x1, y1, x2, y2)
+                recentered_img_path = os.path.join(output_directory, img_file)
+                cv2.imwrite(recentered_img_path, transformed_img)
+                print(f"Recentered and saved: {recentered_img_path}")
+
+        except ValueError:
+            print("Invalid input. Please enter four integer values separated by spaces.")
+            return
+
+    directory = output_directory
 
     projected_length = calculate_projected_length(diameter, arc_length_mm)
     overlap_height = (diameter - projected_length) / 2
     num_overlap_imgs = int(overlap_height / projected_length)
 
-    sample_image_path = os.path.join(directory, os.listdir(directory)[0])
+    sample_image_path = os.path.join(directory, sorted(os.listdir(directory), key=numerical_sort)[0])
     sample_image = cv2.imread(sample_image_path)
     img_height, img_width = sample_image.shape[:2]
 
     x1, x2 = 540, 1320
     y1, y2 = int(img_height / 2 - 15), int(img_height / 2 + 15)
 
-    axis_shift_val = 50  # Initialize to 50 to allow shifting up and down
+    axis_shift_val = 50
     ratio_threshold = 0.55
 
-    # Calculate the initial global_avg_shift using process_directory
-    shifts, global_avg_shift = process_directory(directory, x1, x2, y1, y2, ratio_threshold, axis_shift_left=axis_shift_val, axis_shift_right=axis_shift_val)
+    shifts, global_avg_shift = process_directory(directory, x1, x2, y1, y2, ratio_threshold,
+                                                 axis_shift_left=axis_shift_val, axis_shift_right=axis_shift_val)
 
-    image_files = sorted([f for f in os.listdir(directory) if f.endswith('.jpg')],
+    image_files = sorted([f for f in os.listdir(directory) if f.endswith('.jpg') or f.endswith('.png')],
                          key=numerical_sort)
     num_imgs = len(image_files)
 
     cv2.namedWindow('Stitched Image')
 
-    # Create the trackbars and ensure they call update_stitching
     cv2.createTrackbar('Shift', 'Stitched Image', int(global_avg_shift * 100), 10000, update_stitching)
     cv2.createTrackbar('Axis Shift Left', 'Stitched Image', axis_shift_val, 100, update_stitching)
     cv2.createTrackbar('Axis Shift Right', 'Stitched Image', axis_shift_val, 100, update_stitching)
 
-    # Call update_stitching once after setting the correct trackbar position
     update_stitching(0)
 
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
+
 if __name__ == "__main__":
     main()
+
 ```
